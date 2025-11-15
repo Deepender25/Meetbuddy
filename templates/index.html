@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Intelligence - AI-Powered Meeting Summaries</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="app-title">Meeting Intelligence</h1>
+            <p class="app-subtitle">Transform your meeting videos into professional summaries with AI</p>
+        </header>
+
+        <main class="main-content">
+            <!-- State 1: Upload Form -->
+            <div id="upload-state" class="state active">
+                <div class="upload-card">
+                    <div class="upload-icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </div>
+                    <h2>Upload Your Meeting Video</h2>
+                    <p class="upload-description">
+                        Upload a video file of your meeting (.mp4, .mov, .webm) to extract insights,
+                        identify speakers, and generate a professional summary.
+                    </p>
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <div class="file-input-wrapper">
+                            <input type="file" id="video-input" name="video" accept="video/mp4,video/quicktime,video/webm" required>
+                            <label for="video-input" class="file-input-label">
+                                <span class="file-input-text">Choose video file</span>
+                                <span class="file-input-button">Browse</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="primary-button" id="upload-button" disabled>
+                            Upload & Analyze
+                        </button>
+                    </form>
+                    <div class="upload-info">
+                        <p><strong>File size limit:</strong> 500MB</p>
+                        <p><strong>Processing time:</strong> Usually 2-5 minutes depending on video length</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- State 2: Processing -->
+            <div id="processing-state" class="state">
+                <div class="processing-card">
+                    <div class="spinner">
+                        <div class="bounce1"></div>
+                        <div class="bounce2"></div>
+                        <div class="bounce3"></div>
+                    </div>
+                    <h2>Analyzing Meeting</h2>
+                    <p class="processing-description">This may take a few minutes...</p>
+                    <div class="progress-steps">
+                        <div class="step">
+                            <div class="step-indicator" id="step1">
+                                <div class="step-circle"></div>
+                                <span>Extracting Audio</span>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-indicator" id="step2">
+                                <div class="step-circle"></div>
+                                <span>Transcribing Speech</span>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-indicator" id="step3">
+                                <div class="step-circle"></div>
+                                <span>Identifying Speakers</span>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-indicator" id="step4">
+                                <div class="step-circle"></div>
+                                <span>Finalizing Results</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="secondary-button" id="cancel-processing" style="display: none;">
+                        Cancel Processing
+                    </button>
+                </div>
+            </div>
+
+            <!-- State 3: Speaker Naming -->
+            <div id="speaker-naming-state" class="state">
+                <div class="speaker-card">
+                    <h2>Identify Your Speakers</h2>
+                    <p class="speaker-description">We found <span id="speaker-count">0</span> speakers in your meeting. Please enter their names:</p>
+
+                    <div id="speakers-form" class="speakers-form">
+                        <!-- Speaker inputs will be dynamically generated here -->
+                    </div>
+
+                    <div class="speaker-actions">
+                        <button type="button" class="primary-button" id="generate-summary-button">
+                            Generate Summary
+                        </button>
+                        <button type="button" class="secondary-button" id="back-to-upload">
+                            Start Over
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- State 4: Display Summary -->
+            <div id="summary-state" class="state">
+                <div class="summary-card">
+                    <div class="summary-header">
+                        <h2>Meeting Summary</h2>
+                        <div class="summary-actions">
+                            <button class="icon-button" id="copy-summary" title="Copy to clipboard">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                            <button class="icon-button" id="download-summary" title="Download as text">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="summary-content" class="summary-content">
+                        <!-- Summary content will be rendered here -->
+                    </div>
+
+                    <div class="summary-footer">
+                        <button class="primary-button" id="start-over">
+                            Analyze Another Meeting
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="state">
+                <div class="error-card">
+                    <div class="error-icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <h2>Something went wrong</h2>
+                    <p id="error-message" class="error-message">An unexpected error occurred.</p>
+                    <button class="primary-button" id="retry-button">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Meeting Intelligence • Powered by AI • Free and Open Source</p>
+        </footer>
+    </div>
+
+    <!-- Hidden elements -->
+    <div id="transcript-data" style="display: none;"></div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
