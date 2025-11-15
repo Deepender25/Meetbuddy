@@ -1,0 +1,7 @@
+Flask==2.3.3
+Flask-CORS==4.0.0
+moviepy==1.0.3
+whisperX==3.1.1
+google-generativeai==0.3.2
+python-dotenv==1.0.0
+requests==2.31.0
