@@ -1,5 +1,4 @@
-# Project README
-# Meeting Intelligence MVP - Synchronous Version
+# Meetbuddy - Meeting Intelligence MVP
 
 A streamlined web application that transforms meeting video recordings into structured transcripts with an AI-powered chat interface for querying meeting content.
 
