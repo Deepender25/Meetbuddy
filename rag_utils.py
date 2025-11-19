@@ -9,6 +9,8 @@ from typing import List, Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
+import pickle
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -93,7 +95,7 @@ class RAGPipeline:
         faiss.normalize_L2(embeddings)
         
         # Create FAISS index
-        index = faiss.IndexFlatIP(self.dimension)  # Inner product = cosine similarity for normalized vectors
+        index = faiss.IndexFlatIP(self.dimension)
         index.add(embeddings)
         
         logger.info(f"Vector store created with {index.ntotal} vectors")

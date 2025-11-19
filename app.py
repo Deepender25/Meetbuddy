@@ -6,6 +6,7 @@ Synchronous video processing with RAG-powered chat interface.
 
 import os
 import logging
+import uuid
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
@@ -30,124 +31,80 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_VIDEO_SIZE_MB', 100)) * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_VIDEO_SIZE_MB', 4096)) * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = os.getenv('UPLOAD_FOLDER', 'uploads')
 app.config['PROCESSED_FOLDER'] = os.getenv('PROCESSED_FOLDER', 'processed_transcripts')
 
 # Enable CORS
 CORS(app)
 
-# Allowed file extensions
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'}
-
-# Configure Gemini
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-
-# In-memory storage for vector stores (transcript_id -> (index, chunks))
-vector_stores = {}
-
-
-def allowed_file(filename: str) -> bool:
-    """Check if file extension is allowed."""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 @app.route('/')
 def index():
-    """Serve the main application page."""
+    """Serve the main page."""
     return render_template('index.html')
 
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint."""
-    return jsonify({
-        'status': 'healthy',
-        'service': 'Meeting Intelligence MVP',
-        'version': '1.0.0'
-    })
-
-
-@app.route('/process-video', methods=['POST'])
+@app.route('/process', methods=['POST'])
 def process_video():
     """
-    Main processing endpoint - handles the entire pipeline synchronously.
-    This is a long-running request that blocks until processing is complete.
+    Handle video upload and processing.
     """
-    logger.info("Received video processing request")
-    
-    # Validate request
     if 'video' not in request.files:
-        logger.warning("No video file in request")
         return jsonify({'success': False, 'error': 'No video file provided'}), 400
     
-    file = request.files['video']
-    
-    if file.filename == '':
-        logger.warning("Empty filename")
-        return jsonify({'success': False, 'error': 'No file selected'}), 400
-    
-    if not allowed_file(file.filename):
-        logger.warning(f"Invalid file type: {file.filename}")
-        return jsonify({
-            'success': False,
-            'error': f'Invalid file type. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'
-        }), 400
-    
+    video_file = request.files['video']
+    if video_file.filename == '':
+        return jsonify({'success': False, 'error': 'No selected file'}), 400
+        
     try:
         # Save uploaded file
-        filename = secure_filename(file.filename)
-        upload_folder = Path(app.config['UPLOAD_FOLDER'])
-        upload_folder.mkdir(exist_ok=True)
+        filename = secure_filename(video_file.filename)
+        video_path = Path(app.config['UPLOAD_FOLDER']) / filename
+        video_file.save(video_path)
         
-        # Create unique filename
-        import uuid
-        unique_filename = f"{uuid.uuid4()}_{filename}"
-        file_path = upload_folder / unique_filename
-        
-        logger.info(f"Saving uploaded file: {unique_filename}")
-        file.save(str(file_path))
-        
-        file_size_mb = file_path.stat().st_size / (1024 * 1024)
-        logger.info(f"File saved successfully ({file_size_mb:.2f} MB)")
-        
-        # Run processing pipeline (this blocks until complete)
-        logger.info("Starting processing pipeline...")
+        # Process video
         processor = get_processor()
-        result = processor.run_processing_pipeline(str(file_path))
         
-        logger.info(f"Processing completed successfully: {result['transcript_id']}")
+        # Extract audio
+        audio_path = video_path.with_suffix('.wav')
+        processor.extract_audio(video_path, audio_path)
         
-        return jsonify(result), 200
+        # Transcribe
+        transcript_text = processor.transcribe_audio(audio_path)
+        
+        # Structure
+        structured_transcript = processor.structure_transcript(transcript_text)
+        
+        # Save transcript
+        transcript_id = str(uuid.uuid4())
+        transcript_path = Path(app.config['PROCESSED_FOLDER']) / f"{transcript_id}.txt"
+        with open(transcript_path, 'w', encoding='utf-8') as f:
+            f.write(structured_transcript)
+            
+        # Cleanup
+        processor.cleanup_temp_files(video_path, audio_path)
+        
+        return jsonify({
+            'success': True,
+            'transcript_id': transcript_id,
+            'message': 'Video processed successfully'
+        })
         
     except ProcessingError as e:
-        logger.error(f"Processing error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'message': 'Failed to process video. Please try again with a shorter video.'
-        }), 500
-        
+        return jsonify({'success': False, 'error': str(e)}), 500
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': 'Internal server error',
-            'message': 'An unexpected error occurred. Please try again.'
-        }), 500
+        logger.error(f"Processing error: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @app.route('/chat', methods=['POST'])
 def chat():
     """
-    Handle chat queries using RAG pipeline.
+    Handle chat queries about the processed video.
     """
     try:
         data = request.get_json()
-        
-        if not data:
-            return jsonify({'success': False, 'error': 'No data provided'}), 400
-        
         transcript_id = data.get('transcript_id')
         query = data.get('query')
         
@@ -156,37 +113,27 @@ def chat():
                 'success': False,
                 'error': 'Missing transcript_id or query'
             }), 400
-        
-        logger.info(f"Chat request for transcript {transcript_id}: {query[:50]}...")
-        
-        # Load transcript
+            
+        # Get transcript
         transcript_path = Path(app.config['PROCESSED_FOLDER']) / f"{transcript_id}.txt"
-        
         if not transcript_path.exists():
-            logger.error(f"Transcript not found: {transcript_id}")
             return jsonify({
                 'success': False,
                 'error': 'Transcript not found'
             }), 404
-        
+            
         with open(transcript_path, 'r', encoding='utf-8') as f:
             transcript_text = f.read()
-        
-        # Get or create vector store for this transcript
-        if transcript_id not in vector_stores:
-            logger.info(f"Creating vector store for transcript {transcript_id}")
-            rag = get_rag_pipeline()
-            chunks = rag.chunk_text(transcript_text)
-            index, chunks = rag.create_vector_store(chunks)
-            vector_stores[transcript_id] = (index, chunks)
-            logger.info(f"Vector store created with {len(chunks)} chunks")
-        else:
-            logger.info(f"Using cached vector store for transcript {transcript_id}")
-        
-        # Retrieve context
-        index, chunks = vector_stores[transcript_id]
+            
+        # Get RAG pipeline
         rag = get_rag_pipeline()
-        context = rag.get_context_for_query(index, chunks, query, top_k=3)
+        
+        # Create vector store (in-memory for MVP)
+        chunks = rag.chunk_text(transcript_text)
+        index, _ = rag.create_vector_store(chunks)
+        
+        # Get context
+        context = rag.get_context_for_query(index, chunks, query)
         
         if not context:
             logger.warning("No relevant context found for query")

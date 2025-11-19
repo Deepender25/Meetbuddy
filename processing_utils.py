@@ -13,6 +13,7 @@ import whisper
 import google.generativeai as genai
 from dotenv import load_dotenv
 from prompts import STRUCTURING_PROMPT
+from rag_utils import get_rag_pipeline
 
 load_dotenv()
 
@@ -196,67 +197,12 @@ class VideoProcessor:
             try:
                 if file_path.exists():
                     file_path.unlink()
-                    logger.info(f"Deleted temporary file: {file_path.name}")
+                    logger.info(f"Deleted temporary file: {file_path}")
             except Exception as e:
-                logger.warning(f"Failed to delete {file_path.name}: {str(e)}")
-    
-    def run_processing_pipeline(self, video_file_path: str) -> Dict[str, Any]:
-        """
-        Execute the complete processing pipeline synchronously.
-        
-        Args:
-            video_file_path: Path to the uploaded video file
-            
-        Returns:
-            Dictionary with processing results including transcript_id
-            
-        Raises:
-            ProcessingError: If any step of the pipeline fails
-        """
-        job_id = str(uuid.uuid4())
-        logger.info(f"Starting processing pipeline for job: {job_id}")
-        
-        video_path = Path(video_file_path)
-        audio_path = self.upload_folder / f"{job_id}.wav"
-        transcript_path = self.processed_folder / f"{job_id}.txt"
-        
-        try:
-            logger.info(f"[{job_id}] Step 1/4: Extracting audio")
-            self.extract_audio(video_path, audio_path)
-            
-            logger.info(f"[{job_id}] Step 2/4: Transcribing audio")
-            raw_transcript = self.transcribe_audio(audio_path)
-            
-            logger.info(f"[{job_id}] Step 3/4: Structuring transcript")
-            structured_transcript = self.structure_transcript(raw_transcript)
-            
-            logger.info(f"[{job_id}] Step 4/4: Saving structured transcript")
-            with open(transcript_path, 'w', encoding='utf-8') as f:
-                f.write(structured_transcript)
-            
-            logger.info(f"[{job_id}] Cleaning up temporary files")
-            self.cleanup_temp_files(video_path, audio_path)
-            
-            logger.info(f"[{job_id}] Processing pipeline completed successfully")
-            
-            return {
-                'success': True,
-                'transcript_id': job_id,
-                'transcript_path': str(transcript_path),
-                'transcript_length': len(structured_transcript),
-                'message': 'Video processed successfully'
-            }
-            
-        except ProcessingError as e:
-            logger.error(f"[{job_id}] Processing failed: {str(e)}")
-            self.cleanup_temp_files(video_path, audio_path)
-            raise
-        except Exception as e:
-            logger.error(f"[{job_id}] Unexpected error: {str(e)}")
-            self.cleanup_temp_files(video_path, audio_path)
-            raise ProcessingError(f"Unexpected error during processing: {str(e)}")
+                logger.warning(f"Failed to delete {file_path}: {str(e)}")
 
 
+# Global video processor instance
 _processor = None
 
 
