@@ -70,17 +70,22 @@ def process_video():
         audio_path = video_path.with_suffix('.wav')
         processor.extract_audio(video_path, audio_path)
         
-        # Transcribe
-        transcript_text = processor.transcribe_audio(audio_path)
+        # Transcribe (returns segments)
+        segments = processor.transcribe_audio(audio_path)
         
-        # Structure
-        structured_transcript = processor.structure_transcript(transcript_text)
+        # Format as Script (New Step)
+        formatted_script = processor.format_as_script(segments)
         
-        # Save transcript
+        # Structure (Summary/Action Items) - Now uses the formatted script
+        structured_transcript = processor.structure_transcript(formatted_script)
+        
+        # Save transcript (Combined: Summary + Script)
+        final_output = structured_transcript + "\n\n--- FULL TRANSCRIPT ---\n\n" + formatted_script
+        
         transcript_id = str(uuid.uuid4())
         transcript_path = Path(app.config['PROCESSED_FOLDER']) / f"{transcript_id}.txt"
         with open(transcript_path, 'w', encoding='utf-8') as f:
-            f.write(structured_transcript)
+            f.write(final_output)
             
         # Cleanup
         processor.cleanup_temp_files(video_path, audio_path)

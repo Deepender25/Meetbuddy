@@ -3,6 +3,32 @@ Prompt templates for AI-powered processing.
 Contains all prompt templates used by the Gemini AI model for transcript structuring and RAG-based Q&A.
 """
 
+SCRIPT_FORMATTING_PROMPT = """You are an expert transcript formatter. Your task is to take a raw transcript with timestamps and format it into a clean, readable conversational script.
+
+**INPUT:**
+Raw transcript segments with timestamps.
+
+**INSTRUCTIONS:**
+1. **Identify Speakers:**
+   - Use context clues to identify different speakers.
+   - Label them as "Speaker A", "Speaker B", etc., or use names if clearly mentioned (e.g., "Hi, I'm John").
+   - Maintain consistency: "Speaker A" should always be the same person.
+
+2. **Format as Script:**
+   - Format each line as: `[Time] Speaker: Text`
+   - Example: `[00:12] Speaker A: Hello everyone, let's start.`
+   - Group consecutive sentences by the same speaker into one block if they are close in time.
+
+3. **Clean Text:**
+   - Fix obvious transcription errors (spelling, punctuation).
+   - Remove excessive filler words (um, uh) unless they add meaning.
+   - Keep the tone natural.
+
+**RAW TRANSCRIPT:**
+{transcript}
+
+**FORMATTED SCRIPT:**"""
+
 STRUCTURING_PROMPT = """You are an expert meeting analyst and transcript editor. Your task is to transform a raw, unstructured meeting transcript into a well-organized, professional document that is easy to read and reference.
 
 **INPUT:** Raw transcript that may contain timestamps, speaker labels, transcription errors, grammar issues, filler words, repetitions, and unstructured conversation flow.
@@ -405,6 +431,9 @@ def validate_prompts():
     """
     errors = []
     
+    if "{transcript}" not in SCRIPT_FORMATTING_PROMPT:
+        errors.append("SCRIPT_FORMATTING_PROMPT missing required {transcript} placeholder")
+
     if "{transcript}" not in STRUCTURING_PROMPT:
         errors.append("STRUCTURING_PROMPT missing required {transcript} placeholder")
     
@@ -429,6 +458,7 @@ except ValueError as e:
     raise
 
 __all__ = [
+    'SCRIPT_FORMATTING_PROMPT',
     'STRUCTURING_PROMPT',
     'RAG_PROMPT',
     'SUMMARY_PROMPT',

@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 import whisper
 import google.generativeai as genai
 from dotenv import load_dotenv
-from prompts import STRUCTURING_PROMPT
+from prompts import STRUCTURING_PROMPT, SCRIPT_FORMATTING_PROMPT
 from rag_utils import get_rag_pipeline
 
 load_dotenv()
@@ -106,15 +106,15 @@ class VideoProcessor:
             logger.error(f"Unexpected error during audio extraction: {str(e)}")
             raise ProcessingError(f"Audio extraction failed: {str(e)}")
     
-    def transcribe_audio(self, audio_path: Path) -> str:
+    def transcribe_audio(self, audio_path: Path) -> list:
         """
-        Transcribe audio file using Whisper.
+        Transcribe audio file using Whisper and return segments with timestamps.
         
         Args:
             audio_path: Path to audio file
             
         Returns:
-            Raw transcript text
+            List of segments with 'start', 'end', and 'text'
             
         Raises:
             ProcessingError: If transcription fails
@@ -129,17 +129,74 @@ class VideoProcessor:
                 verbose=False
             )
             
-            transcript = result['text'].strip()
+            segments = result.get('segments', [])
             
-            if not transcript:
-                raise ProcessingError("Transcription produced empty text")
+            if not segments:
+                raise ProcessingError("Transcription produced no segments")
             
-            logger.info(f"Transcription completed: {len(transcript)} characters")
-            return transcript
+            logger.info(f"Transcription completed: {len(segments)} segments")
+            return segments
             
         except Exception as e:
             logger.error(f"Transcription error: {str(e)}")
             raise ProcessingError(f"Failed to transcribe audio: {str(e)}")
+
+    def format_as_script(self, segments: list) -> str:
+        """
+        Format raw transcript segments into a conversational script using Gemini.
+        Handles chunking for long transcripts.
+        
+        Args:
+            segments: List of transcript segments from Whisper
+            
+        Returns:
+            Formatted conversational script
+        """
+        logger.info("Formatting transcript as script with Gemini")
+        
+        # 1. Prepare raw text chunks with timestamps
+        # We'll chunk by number of segments to avoid token limits (approx 50 segments per chunk ~ 1000 tokens?)
+        
+        chunk_size = 50
+        chunks = [segments[i:i + chunk_size] for i in range(0, len(segments), chunk_size)]
+        
+        formatted_script_parts = []
+        
+        for i, chunk in enumerate(chunks):
+            # Format chunk into string for prompt
+            chunk_text = ""
+            for seg in chunk:
+                start_time = int(seg['start'])
+                minutes = start_time // 60
+                seconds = start_time % 60
+                time_str = f"{minutes:02d}:{seconds:02d}"
+                chunk_text += f"[{time_str}] {seg['text']}\n"
+            
+            prompt = SCRIPT_FORMATTING_PROMPT.format(transcript=chunk_text)
+            
+            try:
+                # We use a slightly higher temperature for natural flow inference
+                response = self.gemini_model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=2048,
+                    )
+                )
+                
+                if response.text:
+                    formatted_script_parts.append(response.text.strip())
+                else:
+                    logger.warning(f"Empty response for chunk {i}")
+                    # Fallback: just append raw text if Gemini fails
+                    formatted_script_parts.append(chunk_text)
+                    
+            except Exception as e:
+                logger.error(f"Error formatting chunk {i}: {str(e)}")
+                formatted_script_parts.append(chunk_text) # Fallback
+        
+        full_script = "\n\n".join(formatted_script_parts)
+        return full_script
     
     def structure_transcript(self, raw_transcript: str, max_retries: int = 3) -> str:
         """
