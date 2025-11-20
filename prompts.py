@@ -3,31 +3,29 @@ Prompt templates for AI-powered processing.
 Contains all prompt templates used by the Gemini AI model for transcript structuring and RAG-based Q&A.
 """
 
-SCRIPT_FORMATTING_PROMPT = """You are an expert transcript formatter. Your task is to take a raw transcript with timestamps and format it into a clean, readable conversational script.
+SCRIPT_FORMATTING_PROMPT = """You are an expert transcript formatter. Your task is to format a raw transcript into a clean, readable script with Speaker IDs, BUT you must STRICTLY PRESERVE the original text.
 
 **INPUT:**
 Raw transcript segments with timestamps.
 
-**INSTRUCTIONS:**
-1. **Identify Speakers:**
-   - Use context clues to identify different speakers.
-   - Label them as "Speaker A", "Speaker B", etc., or use names if clearly mentioned (e.g., "Hi, I'm John").
-   - Maintain consistency: "Speaker A" should always be the same person.
+**CRITICAL RULES:**
+1. **NO SUMMARIZATION**: Do NOT summarize, paraphrase, or shorten the text. Keep every single word from the original text.
+2. **NO TIMESTAMPS**: Do NOT include timestamps in the final output.
+3. **SPEAKER LABELS**: Add "Speaker A", "Speaker B", etc. based on context.
+4. **TEXT INTEGRITY**: Fix ONLY obvious spelling/punctuation errors. Do NOT remove filler words if it changes the flow too much, but you can clean up excessive "um"s.
 
-2. **Format as Script:**
-   - Format each line as: `[Time] Speaker: Text`
-   - Example: `[00:12] Speaker A: Hello everyone, let's start.`
-   - Group consecutive sentences by the same speaker into one block if they are close in time.
+**FORMAT:**
+Speaker [ID]: [Exact text from transcript]
 
-3. **Clean Text:**
-   - Fix obvious transcription errors (spelling, punctuation).
-   - Remove excessive filler words (um, uh) unless they add meaning.
-   - Keep the tone natural.
+**EXAMPLE:**
+Speaker A: Hello everyone.
+Speaker B: Hi, how are you?
+Speaker A: I am good, thanks.
 
 **RAW TRANSCRIPT:**
 {transcript}
 
-**FORMATTED SCRIPT:**"""
+**FORMATTED SCRIPT (Strictly preserving text, NO timestamps):**"""
 
 STRUCTURING_PROMPT = """You are an expert meeting analyst and transcript editor. Your task is to transform a raw, unstructured meeting transcript into a well-organized, professional document that is easy to read and reference.
 
